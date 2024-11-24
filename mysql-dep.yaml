@@ -18,14 +18,14 @@ spec:
 #            claimName: mysql-pvc
       containers:
       - name: mysql
-        image: adityahub2255/mysql:$DOCKER_TAG
+        image: guillou73/mysql:$DOCKER_TAG
         env:
           - name: MYSQL_ROOT_PASSWORD
             value: rootpassword
           - name: MYSQL_DATABASE
             value: admin
           - name: MYSQL_USER
-            value: gaetan
+            value: guillou73
           - name: MYSQL_PASSWORD
             value: admin
         ports:
