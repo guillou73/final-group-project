@@ -4,8 +4,8 @@ pipeline {
         git 'Default'
     }
     environment {
-        DOCKER_IMAGE_FLASK = "gaetanneo/flask-app"
-        DOCKER_IMAGE_MYSQL = "gaetanneo/mysql"
+        DOCKER_IMAGE_FLASK = "guillou73/flask-app"
+        DOCKER_IMAGE_MYSQL = "guillou73/mysql"
         DOCKER_REGISTRY_CREDENTIALS = "dockerhub-creds"
         KUBE_NAMESPACE = "default"
         DOCKER_TAG = "${GIT_COMMIT}"
@@ -17,7 +17,7 @@ pipeline {
     stages {
         stage('Checkout from Git') {
             steps {
-                git branch: 'main', url: 'https://github.com/gaetanneo/Deploy-python-app.git'
+                git branch: 'main', url: 'https://github.com/guillou73/final-group-project.git'
             }
         }
 
