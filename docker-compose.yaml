@@ -8,10 +8,10 @@ services:
       - FLASK_ENV=development
       - MYSQL_HOST=mysql-service
       - MYSQL_PORT=3306
-      - MYSQL_USER=gaetan
+      - MYSQL_USER=guillou73
       - MYSQL_PASSWORD=admin
       - MYSQL_DB=admin
-      - MYSQL_URI=mysql+pymysql://gaetan:admin@mysql-service:3306/admin
+      - MYSQL_URI=mysql+pymysql://guillou73:admin@mysql-service:3306/admin
     depends_on:
       mysql-service:
         condition: service_healthy
@@ -23,7 +23,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: admin
-      MYSQL_USER: gaetan
+      MYSQL_USER: guillou73
       MYSQL_PASSWORD: admin
     ports:
       - "3306:3306"
