@@ -1,0 +1,29 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    default-libmysqlclient-dev \
+    build-essential \
+    default-mysql-client \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    pytest pytest-mock pytest-docker
+
+# Set environment variables
+ENV FLASK_APP=app
+
+# Copy application files
+COPY . .
+COPY --chmod=777 wait.sh /wait.sh
+
+# Make wait.sh executable
+RUN chmod +x /wait.sh
+
+# Command to run tests
+CMD ["/wait.sh", "mysql-service:3306", "--", "pytest", "test_main.py", "-v", "--tb=short"]
