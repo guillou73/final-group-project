@@ -22,21 +22,21 @@ RUN chmod +x /wait.sh
 
 # Copy the application code and test files into the container
 COPY main.py .
-COPY tests/ ./tests/
+COPY test/ ./test/
 RUN ls -l /app
 
 # Create a simple test if it doesn't exist
-RUN mkdir -p tests && \
-    if [ ! -f tests/test_main.py ]; then \
+RUN mkdir -p test && \
+    if [ ! -f test/test_main.py ]; then \
     echo 'from main import app\n\
 def test_home():\n\
     client = app.test_client()\n\
     response = client.get("/")\n\
-    assert response.status_code == 200' > tests/test_main.py; \
+    assert response.status_code == 200' > test/test_main.py; \
     fi
 
 # Set environment variables for Flask
-ENV FLASK_APP=main.py
+ENV FLASK=main.py
 ENV FLASK_ENV=development
 
 # Expose the port Flask will run on
