@@ -28,10 +28,18 @@ services:
       - MYSQL_DATABASE=admin
       - MYSQL_USER=guillou73
       - MYSQL_PASSWORD=admin
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "guillou73", "-padmin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    networks:
+      - app-network
 
 volumes:
   mysql_data:
