@@ -13,15 +13,27 @@ RUN apt-get update && \
     apt-get install -y default-libmysqlclient-dev build-essential default-mysql-client && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies and pytest
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir pytest pytest-flask
 
 COPY wait.sh /wait.sh
 RUN chmod +x /wait.sh
 
-# Copy the rest of the application code into the container
+# Copy the application code and test files into the container
 COPY main.py .
+COPY tests/ ./tests/
 RUN ls -l /app
+
+# Create a simple test if it doesn't exist
+RUN mkdir -p tests && \
+    if [ ! -f tests/test_main.py ]; then \
+    echo 'from main import app\n\
+def test_home():\n\
+    client = app.test_client()\n\
+    response = client.get("/")\n\
+    assert response.status_code == 200' > tests/test_main.py; \
+    fi
 
 # Set environment variables for Flask
 ENV FLASK_APP=main.py
@@ -31,6 +43,4 @@ ENV FLASK_ENV=development
 EXPOSE 5000
 
 # Run the application
-#CMD ["flask", "run", "--host=0.0.0.0"]
-
 CMD ["/wait.sh", "mysql-service:3306", "--", "flask", "run", "--host=0.0.0.0", "--port=5000"]
