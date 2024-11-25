@@ -88,20 +88,20 @@ pipeline {
             }
         }
 
-        stage('Perform Unit Test') {
-            steps {
-                script {
-                    try {
+        stage('Perform Unit Test') {//
+            steps {//
+                script {//
+                    try {//
                         // Show test environment
                         sh 'docker-compose exec -T pytest env'
                         
                         // Run tests with detailed output
                         def testResult = sh(
                             script: '''
-                                docker-compose exec -T pytest \
-                                /wait.sh mysql-service:3306 \
+                                docker-compose exec -T pytest \//
+                                /wait.sh mysql-service:3306 \//
                                 -- pytest test_main.py -v --tb=long --capture=no
-                            ''',
+                            ''',//
                             returnStatus: true
                         )
 
