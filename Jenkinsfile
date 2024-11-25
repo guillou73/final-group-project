@@ -98,10 +98,10 @@ pipeline {
                         // Run tests with detailed output
                         def testResult = sh(
                             script: '''
-                                docker-compose exec -T pytest \//
-                                /wait.sh mysql-service:3306 \//
+                                docker-compose exec -T pytest \
+                                /wait.sh mysql-service:3306 \
                                 -- pytest test_main.py -v --tb=long --capture=no
-                            ''',//
+                            ''',
                             returnStatus: true
                         )
 
