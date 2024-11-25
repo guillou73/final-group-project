@@ -19,10 +19,8 @@ pipeline {
             steps {
                 git branch: 'main', url: 'https://github.com/guillou73/final-group-project.git'
             }
-        }
-pipeline {
-    agent any
-    
+    }
+
     stages {
         stage('Deploy') {
             steps {
