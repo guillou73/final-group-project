@@ -13,6 +13,21 @@ usage() {
   echo "Usage: $0 <host>:<port> -- <command>"
   exit 1
 }
+#!/bin/bash
+
+set -e
+
+host="mysql-service"
+user="root"
+password="your_root_password"
+
+until docker-compose exec -T mysql-service mysql -h "$host" -u "$user" -p"$password" -e "SELECT 1;" &> /dev/null
+do
+  echo "Waiting for MySQL to be ready..."
+  sleep 1
+done
+
+echo "MySQL is ready!"
 
 wait_for() {
   local host="$1"
