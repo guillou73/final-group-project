@@ -17,11 +17,12 @@ services:
         condition: service_healthy
     networks:
       - app-network
-   mysql-service:
-    # ... previous configuration ...
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   mysql-service:
     image: mysql:8.0
@@ -32,8 +33,11 @@ services:
       MYSQL_PASSWORD: admin
     ports:
       - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$MYSQL_ROOT_PASSWORD"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "guillou73", "-padmin"]
       interval: 10s
       retries: 5
       start_period: 30s
@@ -46,14 +50,29 @@ services:
       context: .
       dockerfile: Dockerfile.pytest
     depends_on:
-      - flask_app
-      - mysql-service
-    #command: ["sh", "-c", "/wait.sh mysql-service:3306 -- pytest test_main.py -v --tb=short || tail -f /dev/null"]
-    command: ["sh", "-c", "/wait.sh mysql-service:3306 -- pytest test_main.py -v --tb=short && tail -f /dev/null"]
+      mysql-service:
+        condition: service_healthy
+      flask_app:
+        condition: service_healthy
+    environment:
+      - MYSQL_HOST=mysql-service
+      - MYSQL_PORT=3306
+      - MYSQL_USER=guillou73
+      - MYSQL_PASSWORD=admin
+      - MYSQL_DB=admin
+    command: >
+      sh -c '
+      /wait.sh mysql-service:3306 &&
+      pytest test_main.py -v --tb=short
+      '
     networks:
       - app-network
     volumes:
-      - .:/app  # To ensure pytest can access test files
+      - .:/app
+
+volumes:
+  mysql_data:
+    driver: local
 
 networks:
   app-network:
