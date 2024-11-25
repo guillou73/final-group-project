@@ -22,7 +22,6 @@ RUN chmod +x /wait.sh
 
 # Copy the application code and test files into the container
 COPY main.py .
-COPY test/ ./test/
 RUN ls -l /app
 
 # Create a simple test if it doesn't exist
