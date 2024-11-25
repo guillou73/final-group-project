@@ -1,31 +1,31 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: flask-app
+  name: flask
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: flask-app
+      app: flask
   template:
     metadata:
       labels:
-        app: flask-app
+        app: flask
     spec:
       containers:
-      - name: flask-app
-        image: guillou73/flask-app:$DOCKER_TAG
+      - name: flask
+        image: guillou73/flask:$DOCKER_TAG
         ports:
         - containerPort: 5000
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: flask-app-service
+  name: flask-service
 spec:
   type: LoadBalancer
   selector:
-    app: flask-app
+    app: flask
   ports:
     - protocol: TCP
       port: 80
