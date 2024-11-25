@@ -43,13 +43,13 @@ pipeline {
             }
         }
 
-       # stage('Perform Unit Test') {
-          #  steps {
-              #  script {
-              #      sh 'docker-compose exec -T flask pytest test_main.py'
-                 #   def testResult = sh(script: 'docker-compose exec -T flask pytest test_main.py -v --tb=short', returnStatus: true)
-                  #  if (testResult != 0) {
-                    #    error "Tests failed! Exiting pipeline."
+       // stage('Perform Unit Test') {
+          //  steps {
+              // script {
+              //      sh 'docker-compose exec -T flask pytest test_main.py'
+                 //  def testResult = sh(script: 'docker-compose exec -T flask pytest test_main.py -v --tb=short', returnStatus: true)
+                  //if (testResult != 0) {
+                    //   error "Tests failed! Exiting pipeline."
                    // } else {
                         echo 'Tests passed successfully.'
                    // }
