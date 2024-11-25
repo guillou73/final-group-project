@@ -17,6 +17,11 @@ services:
         condition: service_healthy
     networks:
       - app-network
+   mysql-service:
+    # ... previous configuration ...
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
   mysql-service:
     image: mysql:8.0
