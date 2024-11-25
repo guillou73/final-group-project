@@ -24,10 +24,11 @@ pipeline {
         stage('Clean Environment') {
             steps {
                 script {
-                    // Clean up any existing containers and volumes
                     sh '''
-                        docker-compose down --volumes --remove-orphans
-                        docker system prune -f
+                        echo "Cleaning up environment..."
+                        docker-compose down --volumes --remove-orphans || true
+                        docker system prune -f || true
+                        docker volume prune -f || true
                     '''
                 }
             }
@@ -36,95 +37,142 @@ pipeline {
         stage('Run Docker Compose Build') {
             steps {
                 script {
-                    sh 'docker-compose -f docker-compose.yaml build --no-cache'
+                    sh '''
+                        echo "Building Docker images..."
+                        docker-compose -f docker-compose.yaml build --no-cache
+                        echo "Build completed."
+                    '''
                 }
             }
         }
 
-        stage('Deploy and Verify Services') {
+        stage('Debug MySQL Service') {
+            steps {
+                script {
+                    sh '''
+                        echo "=== MySQL Service Debug Information ==="
+                        
+                        echo "Checking MySQL logs..."
+                        docker-compose logs mysql-service || true
+                        
+                        echo "Checking MySQL container status..."
+                        docker ps -a | grep mysql-service || true
+                        
+                        echo "Checking Docker volumes..."
+                        docker volume ls
+                        
+                        echo "Checking file permissions..."
+                        ls -la init.sql || echo "init.sql not found"
+                        
+                        echo "Checking Docker Compose configuration..."
+                        docker-compose config
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Services') {
             steps {
                 script {
                     try {
-                        // Start the services
-                        sh 'docker-compose up -d'
-                        
-                        // Wait for services to be ready
                         sh '''
-                            echo "Waiting for services to be ready..."
-                            sleep 30
+                            echo "Starting services..."
+                            docker-compose up -d
                             
-                            echo "Checking container status..."
-                            docker-compose ps
-                            
-                            echo "MySQL Container Logs:"
-                            docker-compose logs mysql-service
-                            
-                            echo "Flask Container Logs:"
-                            docker-compose logs flask-app
-                            
-                            echo "Checking MySQL Connection..."
-                            docker-compose exec -T mysql-service mysqladmin status -h mysql-service -u guillou73 -padmin
-                            
-                            # Verify MySQL connection
-                            docker-compose exec -T mysql-service mysql -u guillou73 -padmin -e "SELECT 1;"
+                            echo "Waiting for MySQL to be ready..."
+                            for i in $(seq 1 30); do
+                                if docker-compose exec -T mysql-service mysqladmin ping -h localhost -u guillou73 -padmin; then
+                                    echo "MySQL is ready!"
+                                    break
+                                fi
+                                echo "Attempt $i: Waiting for MySQL..."
+                                sleep 5
+                                if [ $i -eq 30 ]; then
+                                    echo "MySQL failed to start in time"
+                                    exit 1
+                                fi
+                            done
                         '''
                     } catch (Exception e) {
-                        echo "Error during deployment: ${e.getMessage()}"
-                        error "Deployment failed"
+                        sh '''
+                            echo "=== Debug Information ==="
+                            docker-compose logs
+                            docker-compose ps
+                            exit 1
+                        '''
                     }
                 }
             }
         }
 
-        stage('Health Check') {
+        stage('Verify Services') {
             steps {
                 script {
                     try {
                         sh '''
-                            # Check if services are healthy
-                            if ! docker-compose ps | grep -q "Up"; then
-                                echo "Services are not running properly"
-                                exit 1
-                            fi
+                            echo "Verifying services..."
                             
-                            # Test MySQL connection
+                            echo "Checking container status..."
+                            docker-compose ps
+                            
+                            echo "Checking MySQL connection..."
                             docker-compose exec -T mysql-service mysql -u guillou73 -padmin -e "SHOW DATABASES;"
                             
-                            # Test Flask app
-                            curl -f http://localhost:5000/health || exit 1
+                            echo "Checking Flask application..."
+                            curl -f http://localhost:5000/health || (echo "Flask app health check failed" && exit 1)
+                            
+                            echo "All services verified successfully!"
                         '''
                     } catch (Exception e) {
-                        echo "Health check failed: ${e.getMessage()}"
-                        error "Health check failed"
+                        sh '''
+                            echo "=== Service Verification Failed ==="
+                            echo "MySQL Logs:"
+                            docker-compose logs mysql-service
+                            echo "Flask Logs:"
+                            docker-compose logs flask_app
+                            exit 1
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                script {
+                    try {
+                        sh '''
+                            echo "Running tests..."
+                            docker-compose exec -T flask_app pytest tests/ -v
+                        '''
+                    } catch (Exception e) {
+                        error "Tests failed: ${e.message}"
                     }
                 }
             }
         }
     }
-    
+
     post {
         success {
-            echo 'Deployment successful!'
+            echo 'Pipeline completed successfully!'
         }
         failure {
             script {
-                echo "Deployment failed!"
+                echo 'Pipeline failed! Collecting debug information...'
                 sh '''
-                    echo "Debug: Container Status"
+                    echo "=== Debug Information ==="
                     docker-compose ps
-                    echo "Debug: MySQL Container Logs"
-                    docker-compose logs mysql-service
-                    echo "Debug: Flask Container Logs"
-                    docker-compose logs flask-app
+                    docker-compose logs
                 '''
             }
         }
         always {
             script {
+                echo 'Cleaning up resources...'
                 sh '''
-                    # Cleanup
-                    docker-compose down --volumes --remove-orphans
-                    docker system prune -f
+                    docker-compose down --volumes --remove-orphans || true
+                    docker system prune -f || true
                 '''
             }
         }
