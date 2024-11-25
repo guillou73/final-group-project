@@ -1,156 +1,120 @@
 pipeline {
     agent any
-    
     environment {
         DOCKER_IMAGE_FLASK = "guillou73/flask-app"
         DOCKER_IMAGE_MYSQL = "guillou73/mysql"
         DOCKER_REGISTRY_CREDENTIALS = "dockerhub-creds"
-        MYSQL_ROOT_PASSWORD = credentials('mysql-root-password')
+        KUBE_NAMESPACE = "default"
+        DOCKER_TAG = "${env.GIT_COMMIT}" // Tag Docker images with the git commit ID
+        KUBE_CONFIG = "${env.HOME}/.kube/config"
+        PROJECT_NAME = "flask-mysql"
     }
 
     stages {
-        stage('Prepare Environment') {
+        stage('Fetch Code') {
+            steps {
+                checkout scm
+                sh 'ls -l $WORKSPACE'
+            }
+        }
+
+        stage('Docker Compose Down') {
             steps {
                 script {
-                    // Create wait-for-mysql script
-                    sh '''
-                        cat << 'EOF' > wait-for-mysql.sh
-                        #!/bin/bash
-                        set -e
-                        host="mysql-service"
-                        user="root"
-                        password="rootpassword"
-                        
-                        echo "Waiting for MySQL to be ready..."
-                        for i in $(seq 1 30); do
-                            if mysqladmin ping -h"$host" -u"$user" -p"$password" --silent; then
-                                echo "MySQL is ready!"
-                                exit 0
-                            fi
-                            echo "Attempt $i: MySQL not ready yet..."
-                            sleep 5
-                        done
-                        echo "MySQL failed to become ready"
-                        exit 1
-                        EOF
-                        
-                        chmod +x wait-for-mysql.sh
-                    '''
+                    sh 'docker-compose down --remove-orphans'
                 }
             }
         }
 
-        stage('Clean Environment') {
+        stage('Run Docker Compose Build') {
             steps {
                 script {
-                    sh '''
-                        # Stop and remove existing containers
-                        docker-compose down --volumes --remove-orphans || true
-                        
-                        # Remove existing volumes
-                        docker volume rm $(docker volume ls -q | grep mysql_data) || true
-                        
-                        # Prune system
-                        docker system prune -f
-                    '''
+                    sh 'docker-compose -f $WORKSPACE/docker-compose.yaml up --build -d'
                 }
             }
         }
 
-        stage('Start MySQL') {
+        stage('Run Docker Compose Up') {
             steps {
                 script {
-                    try {
-                        sh '''
-                            # Start only MySQL service
-                            docker-compose up -d mysql-service
-                            
-                            # Wait for MySQL and show logs if there's an issue
-                            for i in $(seq 1 30); do
-                                if docker-compose exec -T mysql-service mysqladmin ping -h localhost -u root -prootpassword; then
-                                    echo "MySQL is ready!"
-                                    break
-                                fi
-                                echo "Attempt $i: Waiting for MySQL..."
-                                docker-compose logs mysql-service
-                                sleep 5
-                                if [ $i -eq 30 ]; then
-                                    echo "MySQL failed to start"
-                                    exit 1
-                                fi
-                            done
-                        '''
-                    } catch (Exception e) {
-                        sh '''
-                            echo "MySQL failed to start. Debug information:"
-                            docker-compose logs mysql-service
-                            docker inspect mysql-service
-                            exit 1
-                        '''
+                    sh 'docker-compose up -d'
+                    sh 'sleep 5'
+                }
+            }
+        }
+
+        stage('Perform Unit Test') {
+            steps {
+                script {
+                    sh 'docker-compose exec -T flask pytest test_main.py'
+                    def testResult = sh(script: 'docker-compose exec -T flask pytest test_main.py -v --tb=short', returnStatus: true)
+                    if (testResult != 0) {
+                        error "Tests failed! Exiting pipeline."
+                    } else {
+                        echo 'Tests passed successfully.'
                     }
                 }
             }
         }
 
-        stage('Start Flask App') {
+        stage('Build Flask Docker Image') {
             steps {
                 script {
-                    sh '''
-                        # Start Flask service
-                        docker-compose up -d flask_app
-                        
-                        # Wait for Flask to be ready
-                        for i in $(seq 1 15); do
-                            if curl -s http://localhost:5000/health; then
-                                echo "Flask app is ready!"
-                                break
-                            fi
-                            echo "Waiting for Flask app..."
-                            sleep 2
-                        done
-                    '''
+                    docker.build("${DOCKER_IMAGE_FLASK}:${DOCKER_TAG}", ".")
                 }
             }
         }
 
-        stage('Verify Services') {
+        stage('Push Docker Images') {
             steps {
                 script {
-                    sh '''
-                        echo "Checking MySQL..."
-                        docker-compose exec -T mysql-service mysql -uroot -prootpassword -e "SHOW DATABASES;"
-                        
-                        echo "Checking Flask app..."
-                        curl -s http://localhost:5000/health
-                    '''
+                    withCredentials([usernamePassword(credentialsId: "${DOCKER_REGISTRY_CREDENTIALS}",
+                                                      usernameVariable: 'DOCKER_USERNAME', 
+                                                      passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
+                    }
+                    sh "docker tag mysql:5.7 ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}"
+                    sh "docker push ${DOCKER_IMAGE_FLASK}:${DOCKER_TAG}"
+                    sh "docker push ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}"
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'aws-credentials-id',
+                                                      usernameVariable: 'AWS_ACCESS_KEY_ID',
+                                                      passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                        sh 'ls -l $KUBE_CONFIG || echo "Kubeconfig not found!"'
+                        sh 'head -n 20 $KUBE_CONFIG || echo "Kubeconfig content not available!"'
+
+                        sh 'export KUBECONFIG=$KUBE_CONFIG'
+                        sh 'kubectl config view'
+                        sh 'kubectl get nodes'
+
+                        // Prepare updated Kubernetes manifests
+                        sh 'envsubst < $WORKSPACE/mysql-dep.yaml > $WORKSPACE/mysql-deployment-updated.yaml'
+                        sh 'envsubst < $WORKSPACE/flask-dep.yaml > $WORKSPACE/flask-deployment-updated.yaml'
+
+                        // Apply manifests
+                        sh 'kubectl apply -f $WORKSPACE/persistentvolume.yaml -n ${KUBE_NAMESPACE}'
+                        sh 'kubectl apply -f $WORKSPACE/persistentvolumeclaim.yaml -n ${KUBE_NAMESPACE}'
+                        sh 'kubectl apply -f $WORKSPACE/mysql-deployment-updated.yaml -n ${KUBE_NAMESPACE}'
+                        sh 'kubectl apply -f $WORKSPACE/flask-deployment-updated.yaml -n ${KUBE_NAMESPACE}'
+                    }
                 }
             }
         }
     }
 
     post {
-        failure {
-            script {
-                sh '''
-                    echo "=== Debug Information ==="
-                    docker-compose ps
-                    docker-compose logs
-                    
-                    echo "=== MySQL Logs ==="
-                    docker-compose logs mysql-service
-                    
-                    echo "=== MySQL Container Inspection ==="
-                    docker inspect mysql-service || true
-                '''
-            }
+        success {
+            echo "Build and Deployment Successful!"
         }
-        always {
-            script {
-                sh '''
-                    echo "Cleaning up..."
-                    docker-compose down --volumes --remove-orphans || true
-                '''
-            }
+
+        failure {
+            echo "Build or Deployment Failed!"
         }
     }
 }
