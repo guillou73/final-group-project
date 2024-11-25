@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     pytest pytest-mock pytest-docker
 
 # Set environment variables
-ENV FLASK_APP=app
+ENV FLASK
 
 # Copy application files
 COPY . .
