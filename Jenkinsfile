@@ -20,6 +20,48 @@ pipeline {
                 git branch: 'main', url: 'https://github.com/guillou73/final-group-project.git'
             }
         }
+pipeline {
+    agent any
+    
+    stages {
+        stage('Deploy') {
+            steps {
+                sh '''
+                    # Start the services
+                    docker-compose up -d
+                    
+                    # Wait for services to be ready
+                    sleep 30
+                    
+                    echo "Flask Container Logs:"
+                    docker-compose logs flask-app
+                    
+                    echo "Checking MySQL Connection..."
+                    # Use the correct credentials for the check
+                    docker-compose exec -T mysql-service mysqladmin status -h mysql-service -u guillou73 -padmin
+                    
+                    # Additional verification
+                    docker-compose exec -T mysql-service mysql -u guillou73 -padmin -e "SELECT 1;"
+                '''
+            }
+        }
+    }
+    
+    post {
+        failure {
+            sh '''
+                echo "Debug: MySQL Container Logs"
+                docker-compose logs mysql-service
+            '''
+        }
+        always {
+            sh '''
+                # Cleanup
+                docker-compose down
+            '''
+        }
+    }
+}
 
         stage('Clean Environment') {
             steps {
