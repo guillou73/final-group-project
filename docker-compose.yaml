@@ -17,33 +17,31 @@ services:
         condition: service_healthy
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
 
   mysql-service:
     image: mysql:8.0
+    container_name: mysql-service
+    restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: admin
-      MYSQL_USER: guillou73
-      MYSQL_PASSWORD: admin
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=admin
+      - MYSQL_USER=guillou73
+      - MYSQL_PASSWORD=admin
+      - MYSQL_TCP_PORT=3306
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "guillou73", "-padmin"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "guillou73", "--password=admin"]
       interval: 10s
+      timeout: 5s
       retries: 5
       start_period: 30s
-      timeout: 10s
     networks:
       - app-network
+    command: --default-authentication-plugin=mysql_native_password
 
   pytest:
     build:
@@ -52,19 +50,12 @@ services:
     depends_on:
       mysql-service:
         condition: service_healthy
-      flask_app:
-        condition: service_healthy
     environment:
       - MYSQL_HOST=mysql-service
       - MYSQL_PORT=3306
       - MYSQL_USER=guillou73
       - MYSQL_PASSWORD=admin
       - MYSQL_DB=admin
-    command: >
-      sh -c '
-      /wait.sh mysql-service:3306 &&
-      pytest test_main.py -v --tb=short
-      '
     networks:
       - app-network
     volumes:
