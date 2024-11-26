@@ -46,11 +46,17 @@ pipeline {
         stage('Perform Unit Test') {
             steps {
                 script {
-                    def testResult = sh(script: 'docker-compose exec -T flask pytest test_main.py > /dev/null 2>&1', returnStatus: true)
+                    // Run Maven tests inside the "flask" container
+                    def testResult = sh(
+                        script: 'docker-compose exec -T flask mvn clean test',
+                        returnStatus: true
+                    )
+                    
+                    // Check test result
                     if (testResult != 0) {
-                        error "Tests failed! Exiting pipeline."
+                        error "Unit tests failed! Exiting pipeline."
                     } else {
-                        echo 'Tests passed successfully.'
+                        echo "Unit tests passed successfully."
                     }
                 }
             }
