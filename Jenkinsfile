@@ -49,10 +49,10 @@ pipeline {
         stage('Perform Unit Test') {
             steps {
                 script {
-                    // Run the tests silently and capture the result
+                     Run the tests silently and capture the result
                     def testResult = sh(script: 'docker-compose exec -T flask pytest test_main.py > /dev/null 2>&1', returnStatus: true)
 
-                    // Handle test result
+                     Handle test result
                     if (testResult != 0) {
                         error "Tests failed! Exiting pipeline."
                     } else {
