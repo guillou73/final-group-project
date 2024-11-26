@@ -46,9 +46,9 @@ pipeline {
         stage('Perform Unit Test') {
             steps {
                 script {
-                    // Run Maven tests inside the "flask" container
+                    // Run pytest tests inside the "flask" container
                     def testResult = sh(
-                        script: 'docker-compose exec -T flask mvn clean test',
+                        script: 'docker-compose exec -T flask pytest test_main.py > /dev/null 2>&1',
                         returnStatus: true
                     )
                     
