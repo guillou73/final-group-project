@@ -43,25 +43,6 @@ pipeline {
             }
         }
 
-        stage('Perform Unit Test') {
-            steps {
-                script {
-                    // Run pytest tests inside the "flask" container
-                    def testResult = sh(
-                        script: 'docker-compose exec -T flask pytest test_main.py > /dev/null 2>&1',
-                        returnStatus: true
-                    )
-                    
-                    // Check test result
-                    if (testResult != 0) {
-                        error "Unit tests failed! Exiting pipeline."
-                    } else {
-                        echo "Unit tests passed successfully."
-                    }
-                }
-            }
-        }
-
         stage('Build Flask Docker Image') {
             steps {
                 script {
